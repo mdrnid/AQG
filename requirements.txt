@@ -1,0 +1,40 @@
+# ============================================================
+# AQG Project — pip install (CPU lokal & Google Colab)
+# Versi aktual terinstall di D:\conda_envs\nlp_project (Python 3.12)
+# Usage: pip install -r requirements.txt
+# ============================================================
+
+# HuggingFace core
+transformers==5.4.0
+peft==0.18.1
+datasets==4.8.4
+accelerate==1.13.0
+huggingface_hub==1.8.0
+tokenizers==0.22.2
+safetensors==0.7.0
+
+# Evaluation metrics
+evaluate==0.4.6
+bert-score==0.3.13
+rouge_score==0.1.2
+nltk==3.9.4
+sacrebleu==2.6.0
+
+# Semantic similarity (IndoBERT cosine sim untuk distractor filtering)
+sentence-transformers==5.3.0
+
+# Data & utilities
+scikit-learn==1.8.0
+scipy==1.17.1
+pandas==3.0.2
+numpy==2.4.4
+tqdm==4.67.3
+python-dotenv==1.2.2
+jsonlines==4.0.0
+pyarrow==23.0.1
+
+# PyTorch (CPU)
+torch==2.11.0
+
+# Notebook
+ipywidgets==8.1.8
