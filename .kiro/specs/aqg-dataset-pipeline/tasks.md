@@ -1,0 +1,141 @@
+# Implementation Plan: AQG Dataset Pipeline
+
+## Overview
+
+Implementasi pipeline persiapan dataset dari Markdown ke JSONL, mengikuti arsitektur modular di design.md. Setiap task membangun di atas task sebelumnya, dimulai dari komponen paling fundamental (Chunker) hingga pipeline end-to-end.
+
+## Tasks
+
+- [ ] 1. Setup struktur project dan dependencies
+  - Buat folder `src/` dan `tests/` di dalam `dataset_aqg/`
+  - Buat `dataset_aqg/src/__init__.py` dan `dataset_aqg/tests/__init__.py`
+  - Tambahkan `hypothesis`, `pytest`, `openai`, `anthropic`, `python-dotenv` ke `requirements.txt`
+  - Buat file `.env.example` dengan variabel `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+  - _Requirements: semua_
+
+- [ ] 2. Implementasi Chunker
+  - [ ] 2.1 Implementasi `Chunk` dataclass dan fungsi `chunk_markdown()`
+    - Buat `dataset_aqg/src/chunker.py`
+    - Implementasi split berdasarkan heading (`#`, `##`, `###`)
+    - Implementasi split di batas kalimat jika section > 400 token
+    - Preserve code block utuh (jangan split di tengah ` ```python ... ``` `)
+    - Attach metadata: `source_file`, `section_heading`, `token_count`, `has_code`
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+  - [ ]* 2.2 Write property tests untuk Chunker
+    - **Property 1: Chunk token count invariant** — for any Markdown, all chunks <= 400 tokens
+    - **Property 2: Code block integrity** — for any chunk with opening ```, closing ``` must exist
+    - **Property 3: Chunk metadata completeness** — all chunks have non-empty source_file, section_heading, token_count > 0
+    - **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
+
+  - [ ] 2.3 Implementasi `chunk_all_materials()`
+    - Iterasi semua file `.md` secara rekursif di direktori materi
+    - Kembalikan flat list of Chunk dari semua file
+    - _Requirements: 1.1_
+
+- [ ] 3. Implementasi Prompt Constructor
+  - [ ] 3.1 Implementasi `TaskParams`, `PromptInput`, dan `build_prompt()`
+    - Buat `dataset_aqg/src/prompt_constructor.py`
+    - Implementasi `PROMPT_TEMPLATE` sesuai design
+    - Validasi `difficulty` dan `question_type` di constructor
+    - Preserve code block formatting dalam output input string
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [ ]* 3.2 Write property tests untuk Prompt Constructor
+    - **Property 4: Prompt template conformance** — for any chunk + params, input contains "Konteks:", "Prompt:", concept, difficulty, question_type
+    - **Property 5: Code preservation in prompt** — for any chunk with code block, input string contains same code unchanged
+    - **Validates: Requirements 2.1, 2.2, 2.5**
+
+  - [ ] 3.3 Buat `dataset_aqg/src/concept_list.py`
+    - Definisikan `CONCEPTS` dict dengan konsep per modul sesuai design
+    - _Requirements: 4.1_
+
+- [ ] 4. Checkpoint — Pastikan semua tests pass
+  - Jalankan `pytest dataset_aqg/tests/ -v`
+  - Pastikan Chunker dan Prompt Constructor berfungsi dengan materi nyata di `dataset_aqg/materi/`
+
+- [ ] 5. Implementasi Validator
+  - [ ] 5.1 Implementasi `ValidationResult`, `ValidDataPoint`, dan `validate()`
+    - Buat `dataset_aqg/src/validator.py`
+    - Cek panjang input: 50–600 token
+    - Cek target mengandung "Pertanyaan:", "Jawaban benar:", "Distraktor:"
+    - Cek metadata memiliki semua required fields
+    - Cek nilai enum untuk `difficulty` dan `question_type`
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+  - [ ]* 5.2 Write property tests untuk Validator
+    - **Property 7: Metadata schema validity** — for any valid data point, metadata has all required keys with valid enum values
+    - **Property 10: Validator rejects invalid inputs** — for any input with token count < 50 or > 600, is_valid = False
+    - **Validates: Requirements 4.1, 4.3, 4.4, 6.1**
+
+  - [ ] 5.3 Implementasi `validate_batch()` dan validation report
+    - Kembalikan `(valid_list, failure_log)`
+    - Log failure ke list of dict dengan field `reason` dan `raw_datapoint`
+    - _Requirements: 6.4, 6.5_
+
+- [ ] 6. Implementasi Dataset Writer
+  - [ ] 6.1 Implementasi `write_dataset()`
+    - Buat `dataset_aqg/src/dataset_writer.py`
+    - Split train/val/test dengan ratio 70/15/15
+    - Stratifikasi berdasarkan `difficulty`
+    - Simpan setiap split sebagai JSONL (satu JSON object per baris)
+    - Simpan `dataset_info.json` dengan statistik
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+  - [ ]* 6.2 Write property tests untuk Dataset Writer
+    - **Property 6: Target format invariant** — for any valid data point, target is string containing all three section markers
+    - **Property 8: JSONL round-trip consistency** — write then load produces equivalent data with correct types
+    - **Property 9: Split stratification** — each split contains at least one entry per difficulty level
+    - **Validates: Requirements 3.1, 3.2, 5.1, 5.3, 5.4**
+
+- [ ] 7. Implementasi Synthetic Generator
+  - [ ] 7.1 Implementasi `RawDataPoint` dan `generate_datapoint()`
+    - Buat `dataset_aqg/src/synthetic_generator.py`
+    - Support OpenAI GPT-4o dan Anthropic Claude via env var `LLM_PROVIDER`
+    - Implementasi retry logic (max 2 retries) dengan exponential backoff
+    - Tag output dengan `"source": "synthetic"` di metadata
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+
+  - [ ]* 7.2 Write unit tests untuk Synthetic Generator
+    - Test retry logic dengan mock LLM yang gagal N kali
+    - Test bahwa output di-tag dengan `source: synthetic`
+    - Test parsing response LLM yang valid dan tidak valid
+    - _Requirements: 7.3, 7.4, 7.5_
+
+- [ ] 8. Checkpoint — Pastikan semua tests pass
+  - Jalankan `pytest dataset_aqg/tests/ -v`
+  - Test pipeline end-to-end dengan 2–3 file Markdown nyata (tanpa LLM, gunakan mock)
+
+- [ ] 9. Implementasi Augmentor (opsional)
+  - [ ]* 9.1 Implementasi `augment_by_difficulty()` dan `deduplicate()`
+    - Buat `dataset_aqg/src/augmentor.py`
+    - Generate varian easy/medium/hard dari satu data point
+    - Tag dengan `"source": "augmented"` dan `"augmented_from": "{original_id}"`
+    - _Requirements: 8.1, 8.2, 8.4_
+
+  - [ ]* 9.2 Write property test untuk Augmentor
+    - **Property 11: Augmentation deduplication** — after dedup, no two entries have identical input strings
+    - **Validates: Requirements 8.5**
+
+- [ ] 10. Buat pipeline runner script
+  - Buat `dataset_aqg/run_pipeline.py` sebagai entry point
+  - Terima argumen: `--materi-dir`, `--output-dir`, `--max-per-chunk`, `--llm-provider`, `--section`
+  - Jalankan seluruh pipeline: chunk → prompt → generate → validate → write
+  - Implementasi checkpointing: simpan progress ke `output_dir/checkpoint.jsonl` setelah setiap section selesai
+  - WHEN pipeline dilanjutkan, THE Runner SHALL skip section yang sudah ada di checkpoint
+  - Tampilkan progress bar dengan `tqdm`
+  - Simpan `validation_failures.jsonl` di output dir
+  - _Requirements: semua_
+
+- [ ] 11. Final checkpoint — Jalankan pipeline dengan materi nyata
+  - Jalankan pipeline pada minimal 2 modul materi (`01-Berkenalan-dengan-python`)
+  - Verifikasi output JSONL bisa di-load dengan `datasets.load_dataset("json", ...)`
+  - Pastikan semua tests pass: `pytest dataset_aqg/tests/ -v`
+
+## Notes
+
+- Tasks bertanda `*` adalah opsional (tests) — bisa dilewati untuk MVP lebih cepat
+- Setiap property test harus diberi komentar: `# Feature: aqg-dataset-pipeline, Property N: <text>`
+- LLM API key disimpan di `.env`, tidak pernah di-commit ke repo
+- Token count menggunakan estimasi `len(text.split()) * 1.3`, bukan tokenizer penuh (cukup untuk chunking)
+- Format target adalah plain string — jangan ubah ke JSON object

@@ -36,5 +36,11 @@ pyarrow==23.0.1
 # PyTorch (CPU)
 torch==2.11.0
 
+# LangChain
+langchain==1.2.14
+langchain-openai==1.1.12
+langchain-core==1.2.23
+langgraph==1.1.4
+
 # Notebook
 ipywidgets==8.1.8
