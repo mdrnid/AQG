@@ -44,3 +44,7 @@ langgraph==1.1.4
 
 # Notebook
 ipywidgets==8.1.8
+
+# Testing
+pytest>=8.0.0
+hypothesis>=6.100.0

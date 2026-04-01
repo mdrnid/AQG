@@ -1,0 +1,64 @@
+# ── Environment & Secrets ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual Environments ───────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Jupyter Notebooks ──────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Dataset Output (generated files, tidak perlu di-commit) ───────────────
+dataset_aqg/output/
+*.jsonl
+!dataset_aqg/materi/**/*.jsonl
+
+# ── Model Checkpoints & Weights ────────────────────────────────────────────
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+models/
+checkpoints/
+
+# ── HuggingFace Cache ──────────────────────────────────────────────────────
+.cache/
+~/.cache/huggingface/
+
+# ── Testing ────────────────────────────────────────────────────────────────
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── IDE & OS ───────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+*.log
+logs/
+validation_failures.jsonl
+checkpoint.jsonl
