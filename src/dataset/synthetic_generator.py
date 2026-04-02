@@ -16,7 +16,7 @@ from langchain_openai import ChatOpenAI
 from src.dataset.prompt_constructor import PromptInput
 from src.dataset.validator import RawDataPoint
 
-load_dotenv()
+load_dotenv(override=True)
 
 GENERATION_SYSTEM_PROMPT = """Kamu adalah pembuat soal kuis Python untuk siswa Indonesia.
 Berikan output HANYA dalam format berikut (tanpa teks lain, tanpa penjelasan tambahan):
@@ -31,12 +31,18 @@ Pastikan:
 
 def _build_llm_client() -> ChatOpenAI:
     """Membuat LLM client dari environment variables."""
+    api_key = os.getenv("ZAI_API_KEY")
+    base_url = os.getenv("ZAI_API_BASE", "https://api.z.ai/api/paas/v4")
+    model = os.getenv("ZAI_MODEL", "glm-4.7")
+
+    print(f"[DEBUG] model={model}, base_url={base_url}, api_key={'SET' if api_key else 'MISSING'}")
+
     return ChatOpenAI(
-        model=os.getenv("OPENROUTER_MODEL", "qwen/qwen3-6b-preview:free"),
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-        base_url=os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
-        temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.7")),
-        max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "500")),
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        temperature=float(os.getenv("ZAI_TEMPERATURE", "0.7")),
+        max_completion_tokens=int(os.getenv("ZAI_MAX_TOKENS", "2000")),
     )
 
 
