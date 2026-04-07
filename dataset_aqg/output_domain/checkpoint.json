@@ -1,0 +1,15 @@
+{
+  "completed_modules": [
+    "01-Berkenalan-dengan-python",
+    "02-berinteraksi-dengan-data",
+    "03-ekspresi",
+    "04-aksi-sekuensial",
+    "05-control-flow",
+    "06-array",
+    "07-matriks",
+    "08-subprogram",
+    "09-oop",
+    "10-style-guide",
+    "11-unit-testing"
+  ]
+}
