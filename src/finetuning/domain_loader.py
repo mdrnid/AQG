@@ -1,6 +1,6 @@
 import os
 import json
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 from transformers import AutoTokenizer
 
 def load_domain_jsonl(jsonl_path):
@@ -22,7 +22,8 @@ def load_domain_jsonl(jsonl_path):
 
 def get_domain_dataset(jsonl_path, tokenizer_name="Wikidepia/IndoT5-base", max_length=512):
     """
-    Menghasilkan Dataset dari accumulated.jsonl untuk Domain Adaptation.
+    Menghasilkan DatasetDict dari accumulated.jsonl untuk Domain Adaptation.
+    Split: 80% train, 10% validation, 10% test (sesuai dokumentasi).
     """
     raw_data = load_domain_jsonl(jsonl_path)
     
@@ -32,6 +33,22 @@ def get_domain_dataset(jsonl_path, tokenizer_name="Wikidepia/IndoT5-base", max_l
     # Bungkus dalam format Dataset
     raw_dataset = Dataset.from_list(raw_data)
     
+    # Split 80% train | 20% sementara
+    train_testval = raw_dataset.train_test_split(test_size=0.2, seed=42)
+    # Split 20% sementara -> 10% val | 10% test
+    testval = train_testval['test'].train_test_split(test_size=0.5, seed=42)
+    
+    split_dataset = DatasetDict({
+        'train':      train_testval['train'],
+        'validation': testval['train'],
+        'test':       testval['test'],
+    })
+    
+    n_train = len(split_dataset['train'])
+    n_val   = len(split_dataset['validation'])
+    n_test  = len(split_dataset['test'])
+    print(f"Split selesai: train={n_train}, validation={n_val}, test={n_test}")
+
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     
     def tokenize_function(examples):
@@ -54,12 +71,12 @@ def get_domain_dataset(jsonl_path, tokenizer_name="Wikidepia/IndoT5-base", max_l
         tokenized["labels"] = labels_with_ignore_index
         return tokenized
 
-    tokenized_dataset = raw_dataset.map(
+    tokenized_dataset = split_dataset.map(
         tokenize_function,
         batched=True,
-        remove_columns=raw_dataset.column_names,
-        desc="Tokenizing domain dataset from JSONL"
+        remove_columns=split_dataset['train'].column_names,
+        desc="Tokenizing domain dataset"
     )
     
-    print(f"SUCCESS: Memuat {len(tokenized_dataset)} baris data domain.")
+    print(f"SUCCESS: Tokenisasi selesai untuk semua split.")
     return tokenized_dataset, tokenizer

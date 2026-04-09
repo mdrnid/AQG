@@ -1,6 +1,7 @@
 # %% [markdown]
 # # Tahap 1: Domain Adaptation (IndoT5-Python)
-# Script ini melatih IndoT5 untuk memahami materi Python menggunakan tugas Span Masking (MLM).
+# Script ini melatih IndoT5 untuk memahami materi Python menggunakan dataset span masking + QA generik.
+# Split data: 80% train, 10% validation, 10% test
 
 # %%
 import os
@@ -10,8 +11,9 @@ import argparse
 from transformers import (
     AutoModelForSeq2SeqLM, 
     AutoTokenizer, 
-    Trainer, 
-    TrainingArguments
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
+    DataCollatorForSeq2Seq
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
@@ -50,11 +52,14 @@ if IN_COLAB:
 MODEL_NAME = "Wikidepia/IndoT5-base"
 
 print(f"Loading dataset dari: {args.dataset_path}")
-dataset, tokenizer = get_domain_dataset(args.dataset_path, tokenizer_name=MODEL_NAME)
+# Mengembalikan DatasetDict dengan split train/validation/test (80/10/10)
+dataset_dict, tokenizer = get_domain_dataset(args.dataset_path, tokenizer_name=MODEL_NAME)
 
-# Gunakan Seq2Seq Collator karena data sudah ter-masking di JSONL
-from transformers import DataCollatorForSeq2Seq
-data_collator = DataCollatorForSeq2Seq(tokenizer, model=None)
+train_dataset = dataset_dict['train']
+eval_dataset  = dataset_dict['validation']
+test_dataset  = dataset_dict['test']
+
+data_collator = DataCollatorForSeq2Seq(tokenizer, model=None, padding=True)
 
 # %% [markdown]
 # ## 3. Setup Model with LoRA
@@ -62,8 +67,8 @@ data_collator = DataCollatorForSeq2Seq(tokenizer, model=None)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
 lora_config = LoraConfig(
-    r=8, 
-    lora_alpha=16,
+    r=8,             # LoRA rank sesuai spesifikasi
+    lora_alpha=16,   # LoRA alpha sesuai spesifikasi
     target_modules=["q", "v"],
     lora_dropout=0.05,
     bias="none",
@@ -85,36 +90,46 @@ else:
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-training_args = TrainingArguments(
+training_args = Seq2SeqTrainingArguments(
     output_dir=OUTPUT_DIR,
+    eval_strategy="epoch",             # Evaluasi tiap epoch (sesuai spesifikasi)
     per_device_train_batch_size=4,
-    gradient_accumulation_steps=2,     # Total batch = 8
+    per_device_eval_batch_size=4,
+    gradient_accumulation_steps=2,     # Total batch efektif = 8
     learning_rate=2e-4,                # Sesuai spesifikasi
     num_train_epochs=args.epochs,
     warmup_ratio=0.1,                  # 10% Warmup steps
+    weight_decay=0.01,
     logging_steps=10,
     save_strategy="epoch",
     save_total_limit=2,
-    fp16=False, # Dinonaktifkan: T5 sering mengalami NaN loss jika menggunakan fp16
+    predict_with_generate=False,       # False untuk domain adaptation (bukan generasi teks)
+    fp16=False,                        # Dinonaktifkan: T5 sering NaN loss dengan fp16
     report_to="none",
-    remove_unused_columns=False, # Penting untuk T5 MLM
-)
-
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=dataset,
-    processing_class=tokenizer, # Menggunakan processing_class untuk v4.45+
-    data_collator=data_collator,
+    remove_unused_columns=False,
 )
 
 # %% [markdown]
 # ## 5. Start Training 🚀
 # %%
+trainer = Seq2SeqTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,         # Validasi setiap epoch
+    processing_class=tokenizer,
+    data_collator=data_collator,
+)
+
 print("Memulai Domain Adaptation (Tahap 1)...")
+print(f"  Train  : {len(train_dataset)} sampel")
+print(f"  Val    : {len(eval_dataset)} sampel")
+print(f"  Test   : {len(test_dataset)} sampel")
 trainer.train()
 
-# Simpan adapter akhir
+# %% [markdown]
+# ## 6. Simpan Adapter Final
+# %%
 final_path = os.path.join(OUTPUT_DIR, "final_adapter")
 model.save_pretrained(final_path)
 tokenizer.save_pretrained(final_path)
