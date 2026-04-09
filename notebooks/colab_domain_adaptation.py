@@ -22,7 +22,7 @@ from src.finetuning.domain_loader import get_domain_dataset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Domain Adaptation Stage 1")
-    parser.add_argument("--materi_dir", type=str, default="./dataset_aqg/materi", help="Path ke folder materi .md")
+    parser.add_argument("--dataset_path", type=str, default="./dataset_aqg/output_domain/accumulated.jsonl", help="Path ke file .jsonl domain")
     parser.add_argument("--output_dir", type=str, default=None, help="Path simpan adapter")
     parser.add_argument("--epochs", type=int, default=6, help="Jumlah epoch (default 6)")
     
@@ -50,15 +50,12 @@ if IN_COLAB:
 # %%
 MODEL_NAME = "Wikidepia/IndoT5-base"
 
-print(f"Loading dataset dari: {args.materi_dir}")
-dataset, tokenizer = get_domain_dataset(args.materi_dir, tokenizer_name=MODEL_NAME)
+print(f"Loading dataset dari: {args.dataset_path}")
+dataset, tokenizer = get_domain_dataset(args.dataset_path, tokenizer_name=MODEL_NAME)
 
-# Data Collator khusus T5 Span Masking
-data_collator = DataCollatorForT5MLM(
-    tokenizer=tokenizer,
-    noise_density=0.15,
-    mean_noise_span_length=3.0
-)
+# Gunakan Seq2Seq Collator karena data sudah ter-masking di JSONL
+from transformers import DataCollatorForSeq2Seq
+data_collator = DataCollatorForSeq2Seq(tokenizer, model=None)
 
 # %% [markdown]
 # ## 3. Setup Model with LoRA

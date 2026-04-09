@@ -1,57 +1,67 @@
 import os
-import glob
+import json
 from datasets import Dataset
 from transformers import AutoTokenizer
 
-def load_domain_text(materi_dir):
+def load_domain_jsonl(jsonl_path):
     """
-    Membaca seluruh file .md dari folder materi secara rekursif.
+    Membaca data dari file .jsonl (output_domain/accumulated.jsonl)
+    Format: {"input": "...", "target": "...", "metadata": {...}}
     """
-    all_texts = []
-    
-    # Cari semua file .md di dalam subfolder materi
-    md_files = glob.glob(os.path.join(materi_dir, "**/*.md"), recursive=True)
-    
-    if not md_files:
-        print(f"WARNING: Tidak ditemukan file .md di {materi_dir}")
+    data = []
+    if not os.path.exists(jsonl_path):
+        print(f"ERROR: File tidak ditemukan di {jsonl_path}")
         return []
 
-    for file_path in md_files:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            # Pembersihan sederhana (opsional: bisa tambahkan pembersihan markdown yang lebih advanced)
-            # Di sini kita biarkan agar model paham struktur teks juga
-            if content.strip():
-                all_texts.append(content)
-                
-    return all_texts
+    with open(jsonl_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            data.append(json.loads(line))
+            
+    return data
 
-def get_domain_dataset(materi_dir, tokenizer_name="Wikidepia/IndoT5-base", max_length=512):
+def get_domain_dataset(jsonl_path, tokenizer_name="Wikidepia/IndoT5-base", max_length=512):
     """
-    Menghasilkan Hugging Face Dataset yang siap untuk T5 MLM (Span Masking).
+    Menghasilkan Dataset dari accumulated.jsonl untuk Domain Adaptation.
     """
-    texts = load_domain_text(materi_dir)
+    raw_data = load_domain_jsonl(jsonl_path)
     
     # Bungkus dalam format Dataset
-    raw_dataset = Dataset.from_dict({"text": texts})
+    raw_dataset = Dataset.from_list(raw_data)
     
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     
     def tokenize_function(examples):
-        # Kita hanya butuh tokenisasi teks mentah
-        # DataCollatorForT5MLM yang akan menangani masking-nya nanti
-        return tokenizer(
-            examples["text"],
+        model_inputs = tokenizer(
+            examples["input"],
             truncation=True,
             max_length=max_length,
-            padding=False # Kita tidak padding di sini agar hemat memori, dilakukan di collator
+            padding="max_length"
         )
+        
+        # Tokenisasi target (labels)
+        with tokenizer.as_target_tokenizer():
+            labels = tokenizer(
+                examples["target"],
+                truncation=True,
+                max_length=max_length,
+                padding="max_length"
+            )
+            
+        # Ganti pad_token_id dengan -100 agar diabaikan loss function
+        labels_with_ignore_index = []
+        for label_example in labels['input_ids']:
+            labels_with_ignore_index.append([
+                (l if l != tokenizer.pad_token_id else -100) for l in label_example
+            ])
+            
+        model_inputs["labels"] = labels_with_ignore_index
+        return model_inputs
 
     tokenized_dataset = raw_dataset.map(
         tokenize_function,
         batched=True,
-        remove_columns=["text"],
-        desc="Tokenizing domain materials"
+        remove_columns=raw_dataset.column_names,
+        desc="Tokenizing domain dataset from JSONL"
     )
     
     return tokenized_dataset, tokenizer

@@ -13,6 +13,7 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default=None, help="Directory to save checkpoints")
     parser.add_argument("--dataset_path", type=str, default="./dataset_aqg/dataset-task-spesifc", help="Path to dataset")
     parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    parser.add_argument("--adapter_path", type=str, default=None, help="Path to Stage 1 adapter (optional)")
     
     # Check if running in Jupyter/Colab notebook to avoid error with sys.argv
     if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
@@ -103,7 +104,8 @@ model = setup_model_with_lora(
     model_name="Wikidepia/IndoT5-base",
     lora_r=8,
     lora_alpha=16,
-    lora_dropout=0.1
+    lora_dropout=0.1,
+    adapter_path=args.adapter_path
 )
 
 # %% [markdown]
@@ -124,11 +126,12 @@ else:
 training_args = Seq2SeqTrainingArguments(
     output_dir=OUTPUT_DIR,
     eval_strategy="epoch",            # Evaluasi dilakukan setiap akhir epoch
-    learning_rate=5e-5,               # Diturunkan dari 2e-4 agar lebih stabil
+    learning_rate=2e-4,               # Diubah sesuai spesifikasi terbaru
     per_device_train_batch_size=4,    # Dikurangi dari 8 untuk menghindari CUDA Out of Memory
     per_device_eval_batch_size=4,
     gradient_accumulation_steps=2,    # Akumulasi 2 langkah untuk tetap setara batch 8
     num_train_epochs=args.epochs,               # Sesuaikan epoch yang dibutuhkan
+    warmup_ratio=0.1,                 # 10% Warmup steps
     weight_decay=0.01,
     save_total_limit=3,               # Menyimpan 3 checkpoint terakhir
     predict_with_generate=True,       # Harus TRUE untuk model sequence to sequence 

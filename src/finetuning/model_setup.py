@@ -1,3 +1,4 @@
+import os
 from transformers import AutoModelForSeq2SeqLM
 from peft import LoraConfig, get_peft_model, TaskType
 
@@ -5,7 +6,8 @@ def setup_model_with_lora(
     model_name="Wikidepia/IndoT5-base",
     lora_r=8,
     lora_alpha=16,
-    lora_dropout=0.1
+    lora_dropout=0.1,
+    adapter_path=None
 ):
     """
     Setup model IndoT5 base dengan adapter LoRA.
@@ -21,6 +23,14 @@ def setup_model_with_lora(
     """
     # 1. Load base model yang sudah pre-trained
     base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    
+    # 1b. Jika ada adapter dari Tahap 1 (Domain Adaptation), muat dan gabungkan
+    if adapter_path and os.path.exists(adapter_path):
+        print(f"Loading and merging domain adapter from: {adapter_path}")
+        from peft import PeftModel
+        base_model = PeftModel.from_pretrained(base_model, adapter_path)
+        base_model = base_model.merge_and_unload()
+        print("Domain adapter merged successfully.")
     
     # 2. Konfigurasi LoRA untuk model berarsitektur Seq2Seq / T5
     lora_config = LoraConfig(
