@@ -95,7 +95,7 @@ training_args = TrainingArguments(
     logging_steps=10,
     save_strategy="epoch",
     save_total_limit=2,
-    fp16=True if torch.cuda.is_available() else False,
+    fp16=False, # Dinonaktifkan: T5 sering mengalami NaN loss jika menggunakan fp16
     report_to="none",
     remove_unused_columns=False, # Penting untuk T5 MLM
 )

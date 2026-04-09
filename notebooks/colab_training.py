@@ -135,7 +135,7 @@ training_args = Seq2SeqTrainingArguments(
     weight_decay=0.01,
     save_total_limit=3,               # Menyimpan 3 checkpoint terakhir
     predict_with_generate=True,       # Harus TRUE untuk model sequence to sequence 
-    fp16=True,                        # Mixed precision training untuk hemat memori VRAM
+    fp16=False,                       # Dinonaktifkan: T5 sering mengalami NaN loss dengan fp16
     logging_steps=50,
     save_strategy="epoch"
 )
