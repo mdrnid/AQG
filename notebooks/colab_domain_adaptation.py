@@ -10,7 +10,6 @@ import argparse
 from transformers import (
     AutoModelForSeq2SeqLM, 
     AutoTokenizer, 
-    DataCollatorForT5MLM, 
     Trainer, 
     TrainingArguments
 )
@@ -105,7 +104,7 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=dataset,
-    tokenizer=tokenizer,
+    processing_class=tokenizer, # Menggunakan processing_class untuk v4.45+
     data_collator=data_collator,
 )
 

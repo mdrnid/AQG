@@ -64,4 +64,5 @@ def get_domain_dataset(jsonl_path, tokenizer_name="Wikidepia/IndoT5-base", max_l
         desc="Tokenizing domain dataset from JSONL"
     )
     
+    print(f"Data Berhasil Dimuat: {len(tokenized_dataset)} baris dari {jsonl_path}")
     return tokenized_dataset, tokenizer
