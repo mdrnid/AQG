@@ -42,7 +42,14 @@ def load_aqg_dataset(data_dir, tokenizer_name="Wikidepia/IndoT5-base"):
         )
         
         # T5 memerlukan labels dalam 'input_ids'
-        model_inputs['labels'] = labels['input_ids']
+        # PENTING: Ganti pad_token_id menjadi -100 agar diabaikan oleh loss function
+        labels_with_ignore_index = []
+        for label_example in labels['input_ids']:
+            labels_with_ignore_index.append([
+                (l if l != tokenizer.pad_token_id else -100) for l in label_example
+            ])
+            
+        model_inputs['labels'] = labels_with_ignore_index
         return model_inputs
     
     # Apply tokenisasi ke seluruh dataset parallel

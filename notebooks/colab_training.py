@@ -124,7 +124,7 @@ else:
 training_args = Seq2SeqTrainingArguments(
     output_dir=OUTPUT_DIR,
     eval_strategy="epoch",            # Evaluasi dilakukan setiap akhir epoch
-    learning_rate=2e-4,               # LR ideal untuk T5 + LoRA
+    learning_rate=5e-5,               # Diturunkan dari 2e-4 agar lebih stabil
     per_device_train_batch_size=4,    # Dikurangi dari 8 untuk menghindari CUDA Out of Memory
     per_device_eval_batch_size=4,
     gradient_accumulation_steps=2,    # Akumulasi 2 langkah untuk tetap setara batch 8
