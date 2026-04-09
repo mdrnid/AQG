@@ -5,9 +5,24 @@
 # %%
 import os
 import sys
+import torch
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="AQG Training Script")
+    parser.add_argument("--output_dir", type=str, default=None, help="Directory to save checkpoints")
+    parser.add_argument("--dataset_path", type=str, default="./dataset_aqg/dataset-task-spesifc", help="Path to dataset")
+    parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    
+    # Check if running in Jupyter/Colab notebook to avoid error with sys.argv
+    if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
+        return parser.parse_args(args=[])
+    return parser.parse_args()
+
+args = parse_args()
 
 # Deteksi apakah berjalan di Google Colab
-IN_COLAB = 'google.colab' in sys.modules
+IN_COLAB = 'google.colab' in sys.modules or os.path.exists('/content')
 
 if IN_COLAB:
     print("Detected Google Colab environment. Installing dependencies...")
@@ -15,8 +30,16 @@ if IN_COLAB:
     os.system("pip install -q transformers peft datasets accelerate bitsandbytes evaluate rouge-score sentencepiece")
     
     # Mount Google Drive untuk persistensi model/checkpoints
-    from google.colab import drive
-    drive.mount('/content/drive')
+    # Hanya lakukan jika belum ter-mount untuk menghindari error di script
+    if not os.path.exists('/content/drive'):
+        try:
+            from google.colab import drive
+            drive.mount('/content/drive')
+        except Exception as e:
+            print(f"Bypass drive mount: {e}")
+            print("Peringatan: Jika Anda ingin menyimpan ke Drive, lakukan mount di sel Notebook terlebih dahulu.")
+    else:
+        print("Google Drive already mounted.")
     
     # Root direktori project di Colab (biasanya di /content/AQG jika dikloning)
     # Sesuaikan dengan nama repo Anda jika berbeda
@@ -56,9 +79,8 @@ print("Current Working Directory:", os.getcwd())
 # %%
 from src.finetuning.data_loader import load_aqg_dataset
 
-# Path dataset di Colab biasanya ada di dalam repo
-# Jika dataset di-upload ke Drive, ubah path ke '/content/drive/MyDrive/path_to_dataset'
-DATASET_PATH = './dataset_aqg/dataset-task-spesifc'
+# Gunakan path dari argumen CLI jika tersedia
+DATASET_PATH = args.dataset_path
 
 if IN_COLAB and not os.path.exists(DATASET_PATH):
     print(f"Dataset not found at {DATASET_PATH}. Checking in Google Drive...")
@@ -90,8 +112,10 @@ model = setup_model_with_lora(
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 
 # Tentukan direktori checkpoint
-# Jika di Colab, simpan ke Google Drive agar tidak hilang jika session terputus
-if IN_COLAB:
+if args.output_dir:
+    OUTPUT_DIR = args.output_dir
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+elif IN_COLAB:
     OUTPUT_DIR = "/content/drive/MyDrive/aqg_checkpoints"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 else:
@@ -101,9 +125,10 @@ training_args = Seq2SeqTrainingArguments(
     output_dir=OUTPUT_DIR,
     eval_strategy="epoch",            # Evaluasi dilakukan setiap akhir epoch
     learning_rate=2e-4,               # LR ideal untuk T5 + LoRA
-    per_device_train_batch_size=8,    # Kurangi menjadi 4 jika mendapatkan CUDA Out of Memory
-    per_device_eval_batch_size=8,
-    num_train_epochs=3,               # Sesuaikan epoch yang dibutuhkan (misal: 10 atau 20)
+    per_device_train_batch_size=4,    # Dikurangi dari 8 untuk menghindari CUDA Out of Memory
+    per_device_eval_batch_size=4,
+    gradient_accumulation_steps=2,    # Akumulasi 2 langkah untuk tetap setara batch 8
+    num_train_epochs=args.epochs,               # Sesuaikan epoch yang dibutuhkan
     weight_decay=0.01,
     save_total_limit=3,               # Menyimpan 3 checkpoint terakhir
     predict_with_generate=True,       # Harus TRUE untuk model sequence to sequence 
