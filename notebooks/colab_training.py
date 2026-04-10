@@ -125,6 +125,9 @@ def compute_metrics(eval_preds):
     # Ganti -100 kembali ke pad_token_id agar bisa di-decode
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
 
+    # Clip predictions ke rentang valid [0, vocab_size-1]
+    predictions = np.clip(predictions, 0, tokenizer.vocab_size - 1)
+
     decoded_preds  = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     decoded_labels = tokenizer.batch_decode(labels,      skip_special_tokens=True)
 
