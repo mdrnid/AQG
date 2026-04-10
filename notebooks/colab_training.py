@@ -211,10 +211,13 @@ trainer.train()
 # (Lepas komentar di atas untuk menjalankan fine-tuning)
 
 # %% [markdown]
+# %% [markdown]
 # ## 8. Menyimpan Hasil & Model (Save Models)
 # Simpan model untuk inference dan deploy.
 # %%
-trainer.save_model("./final_model")
+final_path = os.path.join(OUTPUT_DIR, "final_model")
+trainer.save_model(final_path)
+print(f"Selesai! Model akhir disimpan di: {final_path}")
 
 # Jika menggunakan Colab, segera push ke drive atau kompres (Zip) untuk didownload.
 # !zip -r final_model.zip ./final_model
