@@ -28,7 +28,7 @@ IN_COLAB = 'google.colab' in sys.modules or os.path.exists('/content')
 if IN_COLAB:
     print("Detected Google Colab environment. Installing dependencies...")
     # Update pip dan install dependensi utama
-    os.system("pip install -q transformers peft datasets accelerate bitsandbytes evaluate rouge-score sentencepiece")
+    os.system("pip install -q transformers peft datasets accelerate bitsandbytes evaluate rouge-score sacrebleu sentencepiece")
     
     # Mount Google Drive untuk persistensi model/checkpoints
     # Hanya lakukan jika belum ter-mount untuk menghindari error di script
@@ -112,6 +112,53 @@ model = setup_model_with_lora(
 # ## 6. Training Configuration (Konfigurasi Trainer)
 # %%
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
+import evaluate
+import numpy as np
+
+# --- Metrik Evaluasi Tahap 2 ---
+rouge_metric = evaluate.load("rouge")
+bleu_metric  = evaluate.load("sacrebleu")
+
+def compute_metrics(eval_preds):
+    predictions, labels = eval_preds
+
+    # Ganti -100 kembali ke pad_token_id agar bisa di-decode
+    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+
+    decoded_preds  = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    decoded_labels = tokenizer.batch_decode(labels,      skip_special_tokens=True)
+
+    # Bersihkan whitespace
+    decoded_preds  = [p.strip() for p in decoded_preds]
+    decoded_labels = [l.strip() for l in decoded_labels]
+
+    # ROUGE-L
+    rouge_result = rouge_metric.compute(
+        predictions=decoded_preds,
+        references=decoded_labels
+    )
+
+    # BLEU-4 (sacrebleu minta references dalam list of list)
+    bleu_result = bleu_metric.compute(
+        predictions=decoded_preds,
+        references=[[l] for l in decoded_labels]
+    )
+
+    # Diversity: Distinct-1 dan Distinct-2
+    all_tokens  = [tok for pred in decoded_preds for tok in pred.split()]
+    all_bigrams = [
+        (all_tokens[i], all_tokens[i+1])
+        for i in range(len(all_tokens) - 1)
+    ]
+    distinct_1 = (len(set(all_tokens))  / len(all_tokens)  * 100) if all_tokens  else 0.0
+    distinct_2 = (len(set(all_bigrams)) / len(all_bigrams) * 100) if all_bigrams else 0.0
+
+    return {
+        "rouge_l"   : round(rouge_result["rougeL"], 4),
+        "bleu_4"    : round(bleu_result["score"], 4),
+        "distinct_1": round(distinct_1, 2),
+        "distinct_2": round(distinct_2, 2),
+    }
 
 # Tentukan direktori checkpoint
 if args.output_dir:
@@ -148,7 +195,8 @@ trainer = Seq2SeqTrainer(
     train_dataset=dataset['train'],
     eval_dataset=dataset['validation'],
     processing_class=tokenizer,
-    data_collator=data_collator
+    data_collator=data_collator,
+    compute_metrics=compute_metrics,   # BLEU-4, ROUGE-L, Distinct-1/2
 )
 
 # %% [markdown]

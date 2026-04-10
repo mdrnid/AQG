@@ -6,8 +6,10 @@
 # %%
 import os
 import sys
+import math
 import torch
 import argparse
+from transformers import TrainerCallback
 from transformers import (
     AutoModelForSeq2SeqLM, 
     AutoTokenizer, 
@@ -112,6 +114,14 @@ training_args = Seq2SeqTrainingArguments(
 # %% [markdown]
 # ## 5. Start Training 🚀
 # %%
+
+# Callback untuk menghitung dan menampilkan Perplexity setiap evaluasi
+class PerplexityCallback(TrainerCallback):
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        if metrics and "eval_loss" in metrics:
+            perplexity = math.exp(metrics["eval_loss"])
+            print(f"  📊 Perplexity: {perplexity:.2f} (epoch {metrics.get('epoch', '?')})")
+
 trainer = Seq2SeqTrainer(
     model=model,
     args=training_args,
@@ -119,6 +129,7 @@ trainer = Seq2SeqTrainer(
     eval_dataset=eval_dataset,         # Validasi setiap epoch
     processing_class=tokenizer,
     data_collator=data_collator,
+    callbacks=[PerplexityCallback()],  # Log perplexity tiap epoch
 )
 
 print("Memulai Domain Adaptation (Tahap 1)...")
